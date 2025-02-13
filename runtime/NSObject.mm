@@ -25,7 +25,7 @@
 #include "NSObject.h"
 
 #include "objc-weak.h"
-#include "DenseMapExtras.h"
+#include "InitWrappers.h"
 
 #include <malloc/malloc.h>
 #include <stdint.h>
@@ -33,6 +33,7 @@
 #include <mach-o/dyld.h>
 #include <mach-o/nlist.h>
 #include <sys/types.h>
+#include <sys/reason.h>
 #include <Block.h>
 #include <map>
 #include "NSObject-internal.h"
@@ -65,7 +66,7 @@ OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_depth_offset  = __buil
 OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_hiwat_offset  = __builtin_offsetof(AutoreleasePoolPageData, hiwat);
 OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_begin_offset  = sizeof(AutoreleasePoolPageData);
 #if SUPPORT_AUTORELEASEPOOL_DEDUP_PTRS
-OBJC_EXTERN const uintptr_t objc_debug_autoreleasepoolpage_ptr_mask = (AutoreleasePoolPageData::AutoreleasePoolEntry){ .ptr = ~(uintptr_t)0 }.ptr;
+OBJC_EXTERN const uintptr_t objc_debug_autoreleasepoolpage_ptr_mask = AutoreleasePoolPageData::AutoreleasePoolEntry::pointerMask;
 #else
 OBJC_EXTERN const uintptr_t objc_debug_autoreleasepoolpage_ptr_mask = ~(uintptr_t)0;
 #endif
@@ -81,7 +82,7 @@ static id defaultBadAllocHandler(Class cls)
                 cls->nameForLogging());
 }
 
-id(*badAllocHandler)(Class) = &defaultBadAllocHandler;
+id(* ptrauth_badAllocHandler badAllocHandler)(Class) = &defaultBadAllocHandler;
 
 id _objc_callBadAllocHandler(Class cls)
 {
@@ -94,31 +95,57 @@ void _objc_setBadAllocHandler(id(*newHandler)(Class))
     badAllocHandler = newHandler;
 }
 
-
+// Support for making direct calls to swift_retain and swift_release instead of
+// going through objc_msgSend and SwiftObject's retain/release methods.
+//
+// We use delay-init to refer to swift_retain/release, since we don't want to
+// force libswiftCore to load. Delay-init adds a tiny bit of overhead to each
+// call, which is normally fine, but refcounting is performance-critical.
+// Instead of calling the functions directly, we lazily initialize function
+// pointers. By initializing the function pointers with functions that perform
+// the lazy initialization, we get minimal overhead once the functions have been
+// looked up.
+//
+// Delay-init rewrites the references to swift_retain/release to go through a
+// function call, which means it needs the containing function to have a frame.
+// These initialization functions are small/simple enough that the compiler
+// normally makes them frameless, with a tail call to swiftRetain/Release. We
+// use empty asm volatile statements to force the calls to not be tail calls,
+// thus forcing the initialization functions to have frames. These functions
+// only run once (or, in the event of a perfect thread race, a handful of times)
+// so performance isn't critical for that.
 static id _initializeSwiftRefcountingThenCallRetain(id objc);
 static void _initializeSwiftRefcountingThenCallRelease(id objc);
 
-explicit_atomic<id(*)(id)> swiftRetain{&_initializeSwiftRefcountingThenCallRetain};
-explicit_atomic<void(*)(id)> swiftRelease{&_initializeSwiftRefcountingThenCallRelease};
+PtrauthGlobalAtomicFunction<id(*)(id)> swiftRetain{&_initializeSwiftRefcountingThenCallRetain};
+PtrauthGlobalAtomicFunction<void(*)(id)> swiftRelease{&_initializeSwiftRefcountingThenCallRelease};
 
+extern "C" id swift_retain(id);
+extern "C" void swift_release(id);
+
+ALWAYS_INLINE
 static void _initializeSwiftRefcounting() {
-    void *const token = dlopen("/usr/lib/swift/libswiftCore.dylib", RTLD_LAZY | RTLD_LOCAL);
-    ASSERT(token);
-    swiftRetain.store((id(*)(id))dlsym(token, "swift_retain"), memory_order_relaxed);
+    swiftRetain.store(swift_retain, memory_order_relaxed);
     ASSERT(swiftRetain.load(memory_order_relaxed));
-    swiftRelease.store((void(*)(id))dlsym(token, "swift_release"), memory_order_relaxed);
+    swiftRelease.store(swift_release, memory_order_relaxed);
     ASSERT(swiftRelease.load(memory_order_relaxed));
-    dlclose(token);
 }
 
 static id _initializeSwiftRefcountingThenCallRetain(id objc) {
-  _initializeSwiftRefcounting();
-  return swiftRetain.load(memory_order_relaxed)(objc);
+    _initializeSwiftRefcounting();
+    id ret = swiftRetain.load(memory_order_relaxed)(objc);
+    asm volatile ("");
+    return ret;
 }
 
 static void _initializeSwiftRefcountingThenCallRelease(id objc) {
-  _initializeSwiftRefcounting();
-  swiftRelease.load(memory_order_relaxed)(objc);
+    _initializeSwiftRefcounting();
+    swiftRelease.load(memory_order_relaxed)(objc);
+    // Delay-init rewrites the references to swift_retain/release to go through
+    // a function call, which means it needs this function to have a frame, but
+    // it runs too late to force one. Instead, we force it with this empty asm
+    // statement, which prevents the above call from being tail called.
+    asm volatile ("");
 }
 
 namespace objc {
@@ -202,32 +229,10 @@ void SideTableForceResetAll() {
     SideTables().forceResetAll();
 }
 
-void SideTableDefineLockOrder() {
-    SideTables().defineLockOrder();
-}
-
-void SideTableLocksPrecedeLock(const void *newlock) {
-    SideTables().precedeLock(newlock);
-}
-
-void SideTableLocksSucceedLock(const void *oldlock) {
-    SideTables().succeedLock(oldlock);
-}
-
-void SideTableLocksPrecedeLocks(StripedMap<spinlock_t>& newlocks) {
-    int i = 0;
-    const void *newlock;
-    while ((newlock = newlocks.getLock(i++))) {
-        SideTables().precedeLock(newlock);
-    }
-}
-
-void SideTableLocksSucceedLocks(StripedMap<spinlock_t>& oldlocks) {
-    int i = 0;
-    const void *oldlock;
-    while ((oldlock = oldlocks.getLock(i++))) {
-        SideTables().succeedLock(oldlock);
-    }
+spinlock_t *SideTableGetLock(unsigned n) {
+    if (auto *entry = SideTables().getLock(n))
+        return &entry->slock;
+    return nullptr;
 }
 
 // Call out to the _setWeaklyReferenced method on obj, if implemented.
@@ -646,10 +651,10 @@ retry:
 **********************************************************************/
 
 // The TLS for ReturnAutoreleaseInfo
-tls_direct(uintptr_t, tls_key::return_autorelease_object,
-           ReturnAutoreleaseInfo::TlsDealloc)
+objc::ExplicitInit<tls_direct(uintptr_t, tls_key::return_autorelease_object,
+           ReturnAutoreleaseInfo::TlsDealloc)>
 	ReturnAutoreleaseInfo::tlsFirstWord;
-tls_direct(const void *, tls_key::return_autorelease_address)
+objc::ExplicitInit<tls_direct(const void *, tls_key::return_autorelease_address)>
 	ReturnAutoreleaseInfo::tlsReturnAddress;
 
 BREAKPOINT_FUNCTION(void objc_autoreleaseNoPool(id obj));
@@ -677,7 +682,7 @@ private:
 #   define POOL_BOUNDARY nil
 
     class HotPageDealloc;
-    static tls_direct(AutoreleasePoolPage *, tls_key::autorelease_pool, HotPageDealloc)
+    static objc::ExplicitInit<tls_direct(AutoreleasePoolPage *, tls_key::autorelease_pool, HotPageDealloc)>
         hotPage_;
 	static uint8_t const SCRIBBLE = 0xA3;  // 0xA3A3A3A3 after releasing
 	static size_t const COUNT = SIZE / sizeof(id);
@@ -716,9 +721,9 @@ private:
         if (newDepth == objc::PageCountWarning && numFaults < MAX_FAULTS) {
             bool objcModeNoFaults = DisableFaults || getpid() == 1 || is_root_ramdisk() || !os_variant_has_internal_diagnostics("com.apple.obj-c");
             if (!objcModeNoFaults) {
-//                os_fault_with_payload(OS_REASON_LIBSYSTEM,
-//                                      OS_REASON_LIBSYSTEM_CODE_FAULT,
-//                                      NULL, 0, "Large Autorelease Pool", 0);
+                os_fault_with_payload(OS_REASON_LIBSYSTEM,
+                                      OS_REASON_LIBSYSTEM_CODE_FAULT,
+                                      NULL, 0, "Large Autorelease Pool", 0);
             } else {
                 os_log_simple("Large Autorelease Pool");
             }
@@ -844,13 +849,13 @@ private:
                         if (offsetEntry <= (AutoreleasePoolEntry*)begin() || *(id *)offsetEntry == POOL_BOUNDARY) {
                             break;
                         }
-                        if (offsetEntry->ptr == (uintptr_t)obj && offsetEntry->count < AutoreleasePoolEntry::maxCount) {
+                        if (offsetEntry->getPointer() == (uintptr_t)obj && offsetEntry->getCount() < AutoreleasePoolEntry::maxCount) {
                             if (offset > 0) {
                                 AutoreleasePoolEntry found = *offsetEntry;
                                 memmove(offsetEntry, offsetEntry + 1, offset * sizeof(*offsetEntry));
                                 *topEntry = found;
                             }
-                            topEntry->count++;
+                            topEntry->incrementCount();
                             ret = (id *)topEntry;  // need to reset ret
                             goto done;
                         }
@@ -859,8 +864,8 @@ private:
             } else {
                 if (!empty() && (obj != POOL_BOUNDARY)) {
                     AutoreleasePoolEntry *prevEntry = (AutoreleasePoolEntry *)next - 1;
-                    if (prevEntry->ptr == (uintptr_t)obj && prevEntry->count < AutoreleasePoolEntry::maxCount) {
-                        prevEntry->count++;
+                    if (prevEntry->getPointer() == (uintptr_t)obj && prevEntry->getCount() < AutoreleasePoolEntry::maxCount) {
+                        prevEntry->incrementCount();
                         ret = (id *)prevEntry;  // need to reset ret
                         goto done;
                     }
@@ -872,7 +877,7 @@ private:
         *next++ = obj;
 #if SUPPORT_AUTORELEASEPOOL_DEDUP_PTRS
         // Make sure obj fits in the bits available for it
-        ASSERT(((AutoreleasePoolEntry *)ret)->ptr == (uintptr_t)obj);
+        ASSERT(((AutoreleasePoolEntry *)ret)->getPointer() == (uintptr_t)obj);
 #endif
      done:
         protect();
@@ -919,8 +924,8 @@ private:
                 AutoreleasePoolEntry* entry = (AutoreleasePoolEntry*) --page->next;
 
                 // create an obj with the zeroed out top byte and release that
-                id obj = (id)entry->ptr;
-                int count = (int)entry->count;  // grab these before memset
+                id obj = (id)entry->getPointer();
+                int count = (int)entry->getCount();  // grab these before memset
 #else
                 id obj = *--page->next;
 #endif
@@ -998,18 +1003,18 @@ private:
 
     static inline bool haveEmptyPoolPlaceholder()
     {
-        return hotPage_ == EMPTY_POOL_PLACEHOLDER;
+        return hotPage_.get() == EMPTY_POOL_PLACEHOLDER;
     }
 
     static inline id* setEmptyPoolPlaceholder()
     {
-        hotPage_ = EMPTY_POOL_PLACEHOLDER;
+        hotPage_.get() = EMPTY_POOL_PLACEHOLDER;
         return (id *)EMPTY_POOL_PLACEHOLDER;
     }
 
     static inline AutoreleasePoolPage *hotPage() 
     {
-        AutoreleasePoolPage *result = hotPage_;
+        AutoreleasePoolPage *result = hotPage_.get();
         if (result == EMPTY_POOL_PLACEHOLDER) return nil;
         if (result) result->fastcheck();
         return result;
@@ -1018,7 +1023,7 @@ private:
     static inline void setHotPage(AutoreleasePoolPage *page) 
     {
         if (page) page->fastcheck();
-        hotPage_ = page;
+        hotPage_.get() = page;
     }
 
     static inline AutoreleasePoolPage *coldPage() 
@@ -1133,12 +1138,16 @@ private:
     }
 
 public:
+    static void initTLS(void) {
+        hotPage_.init();
+    }
+
     static inline id autorelease(id obj)
     {
         ASSERT(!_objc_isTaggedPointerOrNil(obj));
         id *dest __unused = autoreleaseFast(obj);
 #if SUPPORT_AUTORELEASEPOOL_DEDUP_PTRS
-        ASSERT(!dest  ||  dest == (id *)EMPTY_POOL_PLACEHOLDER  ||  (id)((AutoreleasePoolEntry *)dest)->ptr == obj);
+        ASSERT(!dest  ||  dest == (id *)EMPTY_POOL_PLACEHOLDER  ||  (id)((AutoreleasePoolEntry *)dest)->getPointer() == obj);
 #else
         ASSERT(!dest  ||  dest == (id *)EMPTY_POOL_PLACEHOLDER  ||  *dest == obj);
 #endif
@@ -1310,11 +1319,11 @@ public:
             } else {
 #if SUPPORT_AUTORELEASEPOOL_DEDUP_PTRS
                 AutoreleasePoolEntry *entry = (AutoreleasePoolEntry *)p;
-                if (entry->count > 0) {
-                    id obj = (id)entry->ptr;
-                    _objc_inform("[%p]  %#16lx  %s  autorelease count %u",
+                if (entry->getCount() > 0) {
+                    id obj = (id)entry->getPointer();
+                    _objc_inform("[%p]  %#16lx  %s  autorelease count %lu",
                                  p, (unsigned long)obj, object_getClassName(obj),
-                                 entry->count + 1);
+                                 (unsigned long)entry->getCount() + 1);
                     goto done;
                 }
 #endif
@@ -1360,7 +1369,7 @@ public:
         unsigned sumOfExtraReleases = 0;
         for (id *p = begin(); p < next; p++) {
             if (*p != POOL_BOUNDARY) {
-                sumOfExtraReleases += ((AutoreleasePoolEntry *)p)->count;
+                sumOfExtraReleases += ((AutoreleasePoolEntry *)p)->getCount();
             }
         }
         return sumOfExtraReleases;
@@ -1464,8 +1473,8 @@ public:
     }
 };
 
-tls_direct(AutoreleasePoolPage *, tls_key::autorelease_pool,
-           AutoreleasePoolPage::HotPageDealloc) AutoreleasePoolPage::hotPage_;
+objc::ExplicitInit<tls_direct(AutoreleasePoolPage *, tls_key::autorelease_pool,
+                              AutoreleasePoolPage::HotPageDealloc)> AutoreleasePoolPage::hotPage_;
 
 /***********************************************************************
 * Slow paths for inline control
@@ -2368,10 +2377,17 @@ static void startWeakTableScan() {
 }
 #endif
 
-void arr_init(void) 
+void side_tables_init(void)
 {
     SideTablesMap.init();
+}
+
+void arr_init(void)
+{
     _objc_associations_init();
+    ReturnAutoreleaseInfo::tlsFirstWord.init();
+    ReturnAutoreleaseInfo::tlsReturnAddress.init();
+    AutoreleasePoolPage::initTLS();
 
 #if !TARGET_OS_EXCLAVEKIT
     if (DebugScanWeakTables)

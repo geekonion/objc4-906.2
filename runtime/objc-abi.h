@@ -43,10 +43,6 @@
 #include <objc/runtime.h>
 #include <objc/message.h>
 
-#ifndef __APPLE_BLEACH_SDK__
-#define __APPLE_BLEACH_SDK__
-#endif
-
 /* Linker metadata symbols */
 
 // NSObject was in Foundation/CF on macOS < 10.8.

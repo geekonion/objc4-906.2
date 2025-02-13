@@ -15,6 +15,7 @@ int main(int argc, const char * argv[]) {
         IMP imp = imp_implementationWithBlock(^{
             
         });
+        NSLog(@"");
     }
     return 0;
 }

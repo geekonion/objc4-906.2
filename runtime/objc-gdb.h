@@ -39,7 +39,7 @@
 #endif
 #include <stdint.h>
 #include <objc/hashtable.h>
-#include "maptable.h"
+#include <objc/maptable.h>
 #include <ptrauth.h>
 
 // Define our own tagged pointer table entry ptrauth macro, since we can't
@@ -99,8 +99,14 @@ OBJC_EXPORT uintptr_t objc_debug_realized_class_generation_count;
 
 // Extract isa pointer from an isa field.
 // (Class)(isa & mask) == class pointer
+#if TARGET_OS_EXCLAVEKIT
+// Not const because it needs to be computed at startup, but don't modify it!
+OBJC_EXPORT uintptr_t objc_debug_isa_class_mask
+    OBJC_AVAILABLE(10.10, 7.0, 9.0, 1.0, 2.0);
+#else
 OBJC_EXPORT const uintptr_t objc_debug_isa_class_mask
     OBJC_AVAILABLE(10.10, 7.0, 9.0, 1.0, 2.0);
+#endif
 
 // Extract magic cookie from an isa field.
 // (isa & magic_mask) == magic_value
@@ -269,6 +275,7 @@ OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_parent_offset OBJC_AVA
 OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_child_offset  OBJC_AVAILABLE(10.15, 13.0, 13.0, 6.0, 5.0);
 OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_depth_offset  OBJC_AVAILABLE(10.15, 13.0, 13.0, 6.0, 5.0);
 OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_hiwat_offset  OBJC_AVAILABLE(10.15, 13.0, 13.0, 6.0, 5.0);
+OBJC_EXTERN const uint32_t objc_debug_autoreleasepoolpage_begin_offset  OBJC_AVAILABLE(11.0, 14.0, 14.0, 7.0, 6.0);
 OBJC_EXTERN const uintptr_t objc_debug_autoreleasepoolpage_ptr_mask     OBJC_AVAILABLE(10.16, 14.0, 14.0, 7.0, 6.0);
 
 OBJC_EXPORT void *const _Nonnull objc_debug_side_tables_map

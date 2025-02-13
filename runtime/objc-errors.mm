@@ -31,8 +31,7 @@
 
 #include "objc-private.h"
 
-mutex_t crashlog_lock;
-
+ExplicitInitLock<mutex_t> crashlog_lock;
 crashreporter_annotations_t gCRAnnotations;
 
 #if TARGET_OS_EXCLAVEKIT

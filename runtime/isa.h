@@ -88,44 +88,25 @@
 #     define RC_ONE               (1ULL<<RC_ONE_BIT)
 #     define RC_HALF              (1ULL<<7)
 #   else
-//#     define ISA_MASK        0x0000000ffffffff8ULL
-//#     define ISA_MAGIC_MASK  0x000003f000000001ULL
-//#     define ISA_MAGIC_VALUE 0x000001a000000001ULL
-//#     define ISA_HAS_CXX_DTOR_BIT 1
-//#     define ISA_BITFIELD                                                      \
-//        uintptr_t nonpointer        : 1;                                       \
-//        uintptr_t has_assoc         : 1;                                       \
-//        uintptr_t has_cxx_dtor      : 1;                                       \
-//        uintptr_t shiftcls          : 33; /*MACH_VM_MAX_ADDRESS 0x1000000000*/ \
-//        uintptr_t magic             : 6;                                       \
-//        uintptr_t weakly_referenced : 1;                                       \
-//        uintptr_t unused            : 1;                                       \
-//        uintptr_t has_sidetable_rc  : 1;                                       \
-//        uintptr_t extra_rc          : 19
-//#     define ISA_HAS_INLINE_RC    1
-//#     define RC_HAS_SIDETABLE_BIT 44
-//#     define RC_ONE_BIT           (RC_HAS_SIDETABLE_BIT+1)
-//#     define RC_ONE               (1ULL<<RC_ONE_BIT)
-//#     define RC_HALF              (1ULL<<18)
-#       define ISA_MASK        0x00007ffffffffff8ULL
-#       define ISA_MAGIC_MASK  0x001f800000000001ULL
-#       define ISA_MAGIC_VALUE 0x001d800000000001ULL
-#       define ISA_HAS_CXX_DTOR_BIT 1
-#       define ISA_BITFIELD                                                        \
-          uintptr_t nonpointer        : 1;                                         \
-          uintptr_t has_assoc         : 1;                                         \
-          uintptr_t has_cxx_dtor      : 1;                                         \
-          uintptr_t shiftcls          : 44; /*MACH_VM_MAX_ADDRESS 0x7fffffe00000*/ \
-          uintptr_t magic             : 6;                                         \
-          uintptr_t weakly_referenced : 1;                                         \
-          uintptr_t unused            : 1;                                         \
-          uintptr_t has_sidetable_rc  : 1;                                         \
-          uintptr_t extra_rc          : 8
-#       define ISA_HAS_INLINE_RC    1
-#       define RC_HAS_SIDETABLE_BIT 55
-#       define RC_ONE_BIT           (RC_HAS_SIDETABLE_BIT+1)
-#       define RC_ONE               (1ULL<<RC_ONE_BIT)
-#       define RC_HALF              (1ULL<<7)
+#     define ISA_MASK        0x0000000ffffffff8ULL
+#     define ISA_MAGIC_MASK  0x000003f000000001ULL
+#     define ISA_MAGIC_VALUE 0x000001a000000001ULL
+#     define ISA_HAS_CXX_DTOR_BIT 1
+#     define ISA_BITFIELD                                                      \
+        uintptr_t nonpointer        : 1;                                       \
+        uintptr_t has_assoc         : 1;                                       \
+        uintptr_t has_cxx_dtor      : 1;                                       \
+        uintptr_t shiftcls          : 33; /*MACH_VM_MAX_ADDRESS 0x1000000000*/ \
+        uintptr_t magic             : 6;                                       \
+        uintptr_t weakly_referenced : 1;                                       \
+        uintptr_t unused            : 1;                                       \
+        uintptr_t has_sidetable_rc  : 1;                                       \
+        uintptr_t extra_rc          : 19
+#     define ISA_HAS_INLINE_RC    1
+#     define RC_HAS_SIDETABLE_BIT 44
+#     define RC_ONE_BIT           (RC_HAS_SIDETABLE_BIT+1)
+#     define RC_ONE               (1ULL<<RC_ONE_BIT)
+#     define RC_HALF              (1ULL<<18)
 #   endif
 
 #   if TARGET_OS_SIMULATOR
@@ -133,7 +114,7 @@
 #   elif TARGET_OS_OSX
 #     define ISA_MASK_NOSIG 0x00007ffffffffff8ULL
 #   elif TARGET_OS_EXCLAVEKIT
-#     define ISA_MASK_NOSIG 0x0000001ffffffff8ULL
+#     define ISA_MASK_NOSIG objc_debug_isa_class_mask
 #   else
 #     define ISA_MASK_NOSIG 0x0000000ffffffff8ULL
 #   endif

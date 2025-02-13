@@ -66,9 +66,7 @@ public:
     class locker : nocopy_t {
         T& lock;
     public:
-        locker(T& newLock) : lock(newLock) {
-            lock.lock();
-        }
+        locker(T& newLock) : lock(newLock) { lock.lock(); }
         ~locker() { lock.unlock(); }
     };
 

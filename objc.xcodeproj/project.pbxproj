@@ -122,7 +122,6 @@
 		838486200D6D68A800CEA253 /* runtime.h in Headers */ = {isa = PBXBuildFile; fileRef = 8384861A0D6D68A800CEA253 /* runtime.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		838486260D6D68F000CEA253 /* List.h in Headers */ = {isa = PBXBuildFile; fileRef = 838486240D6D68F000CEA253 /* List.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		838486280D6D6A2400CEA253 /* message.h in Headers */ = {isa = PBXBuildFile; fileRef = 838485BD0D6D687300CEA253 /* message.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		83A4AEDC1EA0840800ACADDE /* module.modulemap in Headers */ = {isa = PBXBuildFile; fileRef = 83A4AED71EA06D9D00ACADDE /* module.modulemap */; settings = {ATTRIBUTES = (Public, ); }; };
 		83A4AEDE1EA08C7200ACADDE /* ObjectiveC.apinotes in Headers */ = {isa = PBXBuildFile; fileRef = 83A4AEDD1EA08C5700ACADDE /* ObjectiveC.apinotes */; settings = {ATTRIBUTES = (Public, ); }; };
 		83B1A8BE0FF1AC0D0019EA5B /* objc-msg-simulator-i386.s in Sources */ = {isa = PBXBuildFile; fileRef = 83B1A8BC0FF1AC0D0019EA5B /* objc-msg-simulator-i386.s */; };
 		83BE02E90FCCB24D00661494 /* objc-file.h in Headers */ = {isa = PBXBuildFile; fileRef = 83BE02E60FCCB24D00661494 /* objc-file.h */; };
@@ -157,7 +156,6 @@
 		D36DEACB285B2E59009B5CC4 /* objc-test-env.c in Sources */ = {isa = PBXBuildFile; fileRef = D36DEACA285B2E59009B5CC4 /* objc-test-env.c */; };
 		D36DEACC285B304A009B5CC4 /* libobjc-env.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = D36DEAC4285B2C7D009B5CC4 /* libobjc-env.dylib */; settings = {ATTRIBUTES = (Weak, ); }; };
 		E8923DA5116AB2820071B552 /* objc-block-trampolines.mm in Sources */ = {isa = PBXBuildFile; fileRef = E8923DA0116AB2820071B552 /* objc-block-trampolines.mm */; };
-		F378CAC725534BC000AC8F83 /* module.modulemap in Headers */ = {isa = PBXBuildFile; fileRef = F378CAC625534BAC00AC8F83 /* module.modulemap */; settings = {ATTRIBUTES = (Private, ); }; };
 		F9BCC71B205C68E800DD9AFC /* objc-blocktramps-arm64.s in Sources */ = {isa = PBXBuildFile; fileRef = 8379996D13CBAF6F007C2B5F /* objc-blocktramps-arm64.s */; };
 /* End PBXBuildFile section */
 
@@ -309,7 +307,6 @@
 		838486190D6D68A800CEA253 /* Protocol.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = Protocol.mm; path = runtime/Protocol.mm; sourceTree = "<group>"; };
 		8384861A0D6D68A800CEA253 /* runtime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = runtime.h; path = runtime/runtime.h; sourceTree = "<group>"; };
 		838486240D6D68F000CEA253 /* List.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = List.h; path = runtime/OldClasses.subproj/List.h; sourceTree = "<group>"; };
-		83A4AED71EA06D9D00ACADDE /* module.modulemap */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = "sourcecode.module-map"; name = module.modulemap; path = runtime/Module/module.modulemap; sourceTree = "<group>"; };
 		83A4AEDD1EA08C5700ACADDE /* ObjectiveC.apinotes */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = ObjectiveC.apinotes; path = runtime/Module/ObjectiveC.apinotes; sourceTree = "<group>"; };
 		83B1A8BC0FF1AC0D0019EA5B /* objc-msg-simulator-i386.s */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.asm; name = "objc-msg-simulator-i386.s"; path = "runtime/Messengers.subproj/objc-msg-simulator-i386.s"; sourceTree = "<group>"; };
 		83BE02E60FCCB24D00661494 /* objc-file.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "objc-file.h"; path = "runtime/objc-file.h"; sourceTree = "<group>"; };
@@ -352,7 +349,6 @@
 		E934A9EF23E9967D0088F26F /* objc4.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = objc4.plist; sourceTree = "<group>"; };
 		E93EAF3426160C0900163877 /* preopt-caches.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "preopt-caches.entitlements"; sourceTree = "<group>"; };
 		E93EAF3526160C0900163877 /* preopt-caches.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "preopt-caches.mm"; sourceTree = "<group>"; };
-		F378CAC625534BAC00AC8F83 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; name = module.modulemap; path = runtime/ModulePrivate/module.modulemap; sourceTree = "<group>"; };
 		F9BCC727205C68E800DD9AFC /* libobjc-trampolines.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libobjc-trampolines.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -519,7 +515,6 @@
 			isa = PBXGroup;
 			children = (
 				83A4AEDD1EA08C5700ACADDE /* ObjectiveC.apinotes */,
-				83A4AED71EA06D9D00ACADDE /* module.modulemap */,
 				83F4B52615E843B100E0926F /* NSObjCRuntime.h */,
 				83F4B52715E843B100E0926F /* NSObject.h */,
 				838485BD0D6D687300CEA253 /* message.h */,
@@ -536,7 +531,6 @@
 		838485C70D6D688200CEA253 /* Private Headers */ = {
 			isa = PBXGroup;
 			children = (
-				F378CAC625534BAC00AC8F83 /* module.modulemap */,
 				838485BB0D6D687300CEA253 /* maptable.h */,
 				7213C36221FA7C730090A271 /* NSObject-internal.h */,
 				834EC0A311614167009B2563 /* objc-abi.h */,
@@ -664,7 +658,6 @@
 				75A95051202BAA9A00D7D56F /* objc-locks.h in Headers */,
 				4D88C664298C76E1009A8928 /* objc-malloc-instance.h in Headers */,
 				6E1475ED21DFDB1B001357EA /* llvm-type_traits.h in Headers */,
-				83A4AEDC1EA0840800ACADDE /* module.modulemap in Headers */,
 				830F2A980D738DC200392440 /* hashtable.h in Headers */,
 				6EACB842232C97A400CE9176 /* objc-zalloc.h in Headers */,
 				6E1475EA21DFDB1B001357EA /* llvm-AlignOf.h in Headers */,
@@ -683,7 +676,6 @@
 				D34CF10A27E0BF9E00A395CA /* threading.h in Headers */,
 				6E1475EE21DFDB1B001357EA /* llvm-MathExtras.h in Headers */,
 				838485F80D6D68A200CEA253 /* objc-exception.h in Headers */,
-				F378CAC725534BC000AC8F83 /* module.modulemap in Headers */,
 				83BE02E90FCCB24D00661494 /* objc-file.h in Headers */,
 				75A9504F202BAA0600D7D56F /* objc-locks-new.h in Headers */,
 				834266D80E665A8B002E4DA2 /* objc-gdb.h in Headers */,
@@ -1106,6 +1098,8 @@
 				OTHER_LDFLAGS = (
 					"-Xlinker",
 					"-init_offsets",
+					"-Xlinker",
+					"-delay-lswiftCore",
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
 					"$(inherited)",
@@ -1156,7 +1150,7 @@
 					"$(inherited)",
 					"-nodefaultlibs",
 				);
-				OTHER_TAPI_FLAGS = "-exclude-public-header $(DSTROOT)$(SYSTEM_PREFIX)/usr/include/objc/ObjectiveC.apinotes -exclude-public-header $(DSTROOT)$(SYSTEM_PREFIX)/usr/include/objc/module.modulemap -Xparser -Wno-deprecated-declarations -Xparser -Wno-unavailable-declarations -Xparser -D_OBJC_PRIVATE_H_=1 -DOBJC_DECLARE_SYMBOLS=1 -D__APPLE_API_PRIVATE=1";
+				OTHER_TAPI_FLAGS = "-Xparser -Wno-deprecated-declarations -Xparser -Wno-unavailable-declarations -Xparser -D_OBJC_PRIVATE_H_=1 -DOBJC_DECLARE_SYMBOLS=1 -D__APPLE_API_PRIVATE=1";
 				PRIVATE_HEADERS_FOLDER_PATH = "$(SYSTEM_PREFIX)/usr/local/include/objc";
 				PRODUCT_NAME = objc.A;
 				PUBLIC_HEADERS_FOLDER_PATH = "$(SYSTEM_PREFIX)/usr/include/objc";
@@ -1260,7 +1254,7 @@
 					"$(inherited)",
 					"-nodefaultlibs",
 				);
-				OTHER_TAPI_FLAGS = "-exclude-public-header $(DSTROOT)$(SYSTEM_PREFIX)/usr/include/objc/ObjectiveC.apinotes -exclude-public-header $(DSTROOT)$(SYSTEM_PREFIX)/usr/include/objc/module.modulemap -Xparser -Wno-deprecated-declarations -Xparser -Wno-unavailable-declarations -Xparser -D_OBJC_PRIVATE_H_=1 -DOBJC_DECLARE_SYMBOLS=1 -D__APPLE_API_PRIVATE=1";
+				OTHER_TAPI_FLAGS = "-Xparser -Wno-deprecated-declarations -Xparser -Wno-unavailable-declarations -Xparser -D_OBJC_PRIVATE_H_=1 -DOBJC_DECLARE_SYMBOLS=1 -D__APPLE_API_PRIVATE=1";
 				PRIVATE_HEADERS_FOLDER_PATH = "$(SYSTEM_PREFIX)/usr/local/include/objc";
 				PRODUCT_NAME = objc.A;
 				PUBLIC_HEADERS_FOLDER_PATH = "$(SYSTEM_PREFIX)/usr/include/objc";

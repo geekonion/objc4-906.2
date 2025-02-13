@@ -46,6 +46,7 @@
 #include "objc-test-env.h"
 #endif
 
+#include "InitWrappers.h"
 #include "llvm-MathExtras.h"
 #include "objc-private.h"
 #include "objc-loadmethod.h"
@@ -105,7 +106,11 @@ namespace objc {
 }
 
 // objc's TLS
-static tls_autoptr_direct(_objc_pthread_data, tls_key::main) _objc_tls;
+static objc::ExplicitInit<tls_autoptr_direct(_objc_pthread_data, tls_key::main)> _objc_tls;
+
+void runtime_tls_init(void) {
+    _objc_tls.init();
+}
 
 // Selectors
 SEL SEL_cxx_construct = NULL;
@@ -298,7 +303,7 @@ void appendHeader(header_info *hi)
         LastHeader = hi;
     }
 
-    if ((hi->mhdr()->flags & MH_DYLIB_IN_CACHE) == 0) {
+    if (!objc::inSharedCache((uintptr_t)hi->mhdr())) {
         foreach_data_segment(hi->mhdr(), [](const segmentType *seg, intptr_t slide) {
             uintptr_t start = (uintptr_t)seg->vmaddr + slide;
             objc::dataSegmentsRanges.add(start, start + seg->vmsize);
@@ -343,7 +348,7 @@ void removeHeader(header_info *hi)
         prev = current;
     }
 
-    if ((hi->mhdr()->flags & MH_DYLIB_IN_CACHE) == 0) {
+    if (!objc::inSharedCache((uintptr_t)hi->mhdr())) {
         foreach_data_segment(hi->mhdr(), [](const segmentType *seg, intptr_t slide) {
             uintptr_t start = (uintptr_t)seg->vmaddr + slide;
             objc::dataSegmentsRanges.remove(start, start + seg->vmsize);
@@ -368,58 +373,6 @@ void SetPageCountWarning(const char* envvar) {
     }
 }
 
-//{
-//    const uint32_t proc_sdk_ver = proc_sdk(current_proc());
-//    
-//    switch (proc_platform(current_proc())) {
-//        case PLATFORM_MACOS:
-//            return proc_sdk_ver >= 0x000a1000; // DYLD_MACOSX_VERSION_10_16
-//        case PLATFORM_IOS:
-//        case PLATFORM_IOSSIMULATOR:
-//        case PLATFORM_MACCATALYST:
-//            return proc_sdk_ver >= 0x000e0000; // DYLD_IOS_VERSION_14_0
-//        case PLATFORM_BRIDGEOS:
-//            return proc_sdk_ver >= 0x00050000; // DYLD_BRIDGEOS_VERSION_5_0
-//        case PLATFORM_TVOS:
-//        case PLATFORM_TVOSSIMULATOR:
-//            return proc_sdk_ver >= 0x000e0000; // DYLD_TVOS_VERSION_14_0
-//        case PLATFORM_WATCHOS:
-//        case PLATFORM_WATCHOSSIMULATOR:
-//            return proc_sdk_ver >= 0x00070000; // DYLD_WATCHOS_VERSION_7_0
-//        default:
-//            /*
-//             * tough call, but let's give new platforms the benefit of the doubt
-//             * to avoid a re-occurence of rdar://89843927
-//             */
-//            return true;
-//    }
-//}
-
-dyld_build_version_t dyld_fall_2020_os_versions = {
-#if TARGET_OS_MAC || TARGET_OS_OSX
-    .platform = PLATFORM_MACOS,
-    .version = 0x000a1000,
-#elif TARGET_OS_IOS
-    .platform = PLATFORM_IOS,
-    .version = 0x000e0000,
-#elif TARGET_OS_SIMULATOR
-    .platform = PLATFORM_IOSSIMULATOR,
-    .version = 0x000e0000,
-#elif TARGET_OS_MACCATALYST
-    .platform = PLATFORM_MACCATALYST,
-    .version = 0x000e0000,
-#elif TARGET_OS_TV
-    .platform = PLATFORM_TVOS,
-    .version = 0x000e0000,
-#elif TARGET_OS_TVSIMULATOR
-    .platform = PLATFORM_TVOSSIMULATOR,
-    .version = 0x000e0000,
-#elif TARGET_OS_WATCH
-    .platform = PLATFORM_WATCHOS,
-    .version = 0x00070000,
-#endif
-};
-
 /***********************************************************************
 * environ_init
 * Read environment variables that affect the runtime.
@@ -438,23 +391,23 @@ void environ_init(void)
     // older SDKs. LRU coalescing can reorder releases and certain older apps
     // are accidentally relying on the ordering.
     // rdar://problem/63886091
-    if (!dyld_program_sdk_at_least(dyld_fall_2020_os_versions))
-        DisableAutoreleaseCoalescingLRU = On;
+//    if (!dyld_program_sdk_at_least(dyld_fall_2020_os_versions))
+//        DisableAutoreleaseCoalescingLRU = On;
 
     // class_rx_t pointer signing enforcement is *disabled* by default unless
     // this OS feature is enabled, but it can be explicitly enabled by setting
     // the environment variable, for testing.
-    if (!false)
-        DisableClassRXSigningEnforcement = On;
+//    if (!os_feature_enabled_simple(objc4, classRxSigning, false))
+//        DisableClassRXSigningEnforcement = On;
 
     // Faults for class_ro_t pointer signing enforcement are disabled by
     // default unless this OS feature is enabled.
-    if (!false)
-        DisableClassROFaults = On;
+//    if (!os_feature_enabled_simple(objc4, classRoSigningFaults, false))
+//        DisableClassROFaults = On;
 
 #if TARGET_OS_OSX || TARGET_OS_SIMULATOR
-    if (!false)
-        DisableFaults = On;
+//    if (!os_feature_enabled_simple(objc4, autoreleaseFaultsMacOS, false))
+//        DisableFaults = On;
 #endif
 #endif // !TARGET_OS_EXCLAVEKIT
 
@@ -624,7 +577,7 @@ logReplacedMethod(const char *className, SEL s,
 **********************************************************************/
 _objc_pthread_data *_objc_fetch_pthread_data(bool create)
 {
-    return _objc_tls.get(create);
+    return _objc_tls.get().get(create);
 }
 
 
@@ -676,7 +629,7 @@ objc_defaultForwardHandler(id self, SEL sel)
                 class_isMetaClass(object_getClass(self)) ? '+' : '-', 
                 object_getClassName(self), sel_getName(sel), self);
 }
-void *_objc_forward_handler = (void*)objc_defaultForwardHandler;
+void (* ptrauth_objc_forward_handler _objc_forward_handler)(id, SEL) = objc_defaultForwardHandler;
 
 #if SUPPORT_STRET
 struct stret { int i[100]; };
@@ -690,7 +643,7 @@ void *_objc_forward_stret_handler = (void*)objc_defaultForwardStretHandler;
 
 void objc_setForwardHandler(void *fwd, void *fwd_stret)
 {
-    _objc_forward_handler = fwd;
+    _objc_forward_handler = (void (*)(id, SEL))fwd;
 #if SUPPORT_STRET
     _objc_forward_stret_handler = fwd_stret;
 #endif

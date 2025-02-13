@@ -54,12 +54,6 @@ typedef struct objc_property *objc_property_t;
 
 #endif
 
-#ifdef __OBJC__
-@class Protocol;
-#else
-typedef struct objc_object Protocol;
-#endif
-
 /// Defines a method
 struct objc_method_description {
     SEL _Nullable name;               /**< The name of the method */
@@ -367,6 +361,7 @@ objc_copyClassList(unsigned int * _Nullable outCount)
  *
  */
 #define OBJC_DYNAMIC_CLASSES ((const void *)-1)
+#ifdef __BLOCKS__
 OBJC_EXPORT void
 objc_enumerateClasses(const void * _Nullable image,
                       const char * _Nullable namePrefix,
@@ -375,7 +370,9 @@ objc_enumerateClasses(const void * _Nullable image,
                       void (^ _Nonnull block)(Class _Nonnull aClass, BOOL * _Nonnull stop)
                       OBJC_NOESCAPE)
     OBJC_AVAILABLE(13.0, 16.0, 16.0, 9.0, 7.0)
-    OBJC_REFINED_FOR_SWIFT;
+    OBJC_REFINED_FOR_SWIFT
+    OBJC_NOT_TAIL_CALLED;
+#endif
 
 /* Working with Classes */
 
@@ -433,7 +430,7 @@ class_setSuperclass(Class _Nonnull cls, Class _Nonnull newSuper)
     __TVOS_DEPRECATED(9.0, 9.0, "not recommended")
     __WATCHOS_DEPRECATED(1.0, 1.0, "not recommended")
 #ifndef __APPLE_BLEACH_SDK__
-//    __BRIDGEOS_DEPRECATED(2.0, 2.0, "not recommended")
+    __BRIDGEOS_DEPRECATED(2.0, 2.0, "not recommended")
 #endif
 ;
 
@@ -1483,34 +1480,6 @@ objc_copyClassNamesForImage(const char * _Nonnull image,
 /* Working with Selectors */
 
 /** 
- * Returns the name of the method specified by a given selector.
- * 
- * @param sel A pointer of type \c SEL. Pass the selector whose name you wish to determine.
- * 
- * @return A C string indicating the name of the selector.
- */
-OBJC_EXPORT const char * _Nonnull
-sel_getName(SEL _Nonnull sel)
-    OBJC_AVAILABLE(10.0, 2.0, 9.0, 1.0, 2.0);
-
-
-/** 
- * Registers a method with the Objective-C runtime system, maps the method 
- * name to a selector, and returns the selector value.
- * 
- * @param str A pointer to a C string. Pass the name of the method you wish to register.
- * 
- * @return A pointer of type SEL specifying the selector for the named method.
- * 
- * @note You must register a method name with the Objective-C runtime system to obtain the
- *  method’s selector before you can add the method to a class definition. If the method name
- *  has already been registered, this function simply returns the selector.
- */
-OBJC_EXPORT SEL _Nonnull
-sel_registerName(const char * _Nonnull str)
-    OBJC_AVAILABLE(10.0, 2.0, 9.0, 1.0, 2.0);
-
-/** 
  * Returns a Boolean value that indicates whether two selectors are equal.
  * 
  * @param lhs The selector to compare with rhs.
@@ -1910,7 +1879,7 @@ _objc_flush_caches(Class _Nullable cls)
     __TVOS_DEPRECATED(9.0, 9.0, "not recommended")
     __WATCHOS_DEPRECATED(1.0, 1.0, "not recommended")
 #ifndef __APPLE_BLEACH_SDK__
-//    __BRIDGEOS_DEPRECATED(2.0, 2.0, "not recommended")
+    __BRIDGEOS_DEPRECATED(2.0, 2.0, "not recommended")
 #endif
 ;
 
@@ -1925,7 +1894,7 @@ class_lookupMethod(Class _Nullable cls, SEL _Nonnull sel)
     __TVOS_DEPRECATED(9.0, 9.0, "use class_getMethodImplementation instead")
     __WATCHOS_DEPRECATED(1.0, 1.0, "use class_getMethodImplementation instead")
 #ifndef __APPLE_BLEACH_SDK__
-//    __BRIDGEOS_DEPRECATED(2.0, 2.0, "use class_getMethodImplementation instead")
+    __BRIDGEOS_DEPRECATED(2.0, 2.0, "use class_getMethodImplementation instead")
 #endif
 ;
 OBJC_EXPORT BOOL
@@ -1935,7 +1904,7 @@ class_respondsToMethod(Class _Nullable cls, SEL _Nonnull sel)
     __TVOS_DEPRECATED(9.0, 9.0, "use class_respondsToSelector instead")
     __WATCHOS_DEPRECATED(1.0, 1.0, "use class_respondsToSelector instead")
 #ifndef __APPLE_BLEACH_SDK__
-//    __BRIDGEOS_DEPRECATED(2.0, 2.0, "use class_respondsToSelector instead")
+    __BRIDGEOS_DEPRECATED(2.0, 2.0, "use class_respondsToSelector instead")
 #endif
 ;
 

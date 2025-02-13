@@ -284,7 +284,6 @@ typedef enum {
 #undef INTERNAL_OPTION
 
 /* errors */
-extern id(*badAllocHandler)(Class);
 extern id _objc_callBadAllocHandler(Class cls) __attribute__((cold, noinline));
 extern void __objc_error(id, const char *, ...) __attribute__((cold, format (printf, 2, 3), noreturn));
 extern void _objc_inform(const char *fmt, ...) __attribute__((cold, format(printf, 1, 2)));
@@ -401,6 +400,12 @@ extern struct SafeRanges dataSegmentsRanges;
 
 static inline bool inSharedCache(uintptr_t ptr) {
     return dataSegmentsRanges.inSharedCache(ptr);
+}
+
+// Check if a class is in the shared cache, considering inside-out patched
+// classes as NOT in the shared cache.
+static inline bool classInSharedCache(Class cls) {
+    return inSharedCache((uintptr_t)cls) && inSharedCache((uintptr_t)cls->safe_ro());
 }
 
 } // objc
@@ -533,9 +538,8 @@ struct mapped_image_info {
         return dyldInfo.dyldObjCRefsOptimized && isPreoptimized();
     }
 
-    // TODO: dyld will add a flag for this which we need to adopt.
     bool dyldCategoriesOptimized() {
-        return false;
+        return hi->info()->dyldCategoriesOptimized();
     }
 };
 
@@ -571,10 +575,25 @@ extern Class _calloc_class(size_t size);
 
 /* method lookup */
 enum {
-    LOOKUP_INITIALIZE = 1,
-    LOOKUP_RESOLVER = 2,
-    LOOKUP_NIL = 4,
-    LOOKUP_NOCACHE = 8,
+    // Initialize the class if needed.
+    LOOKUP_INITIALIZE = 1 << 0,
+
+    // Use resolve(Class|Instance)Method: if no method found.
+    LOOKUP_RESOLVER = 1 << 1,
+
+    // Return nil instead of msgForward if no method found.
+    LOOKUP_NIL = 1 << 2,
+
+    // Don't put the result in the class's method cache.
+    LOOKUP_NOCACHE = 1 << 3,
+
+    // This call is from objc_msgSend_fpret. If the target is a disabled class,
+    // return an IMP that does an fpret return 0.
+    LOOKUP_FPRET = 1 << 4,
+
+    // This call is from objc_msgSend_fp2ret. If the target is a disabled class,
+    // return an IMP that does an fp2ret return 0.
+    LOOKUP_FP2RET = 1 << 5,
 };
 extern IMP lookUpImpOrForward(id obj, SEL, Class cls, int behavior);
 extern IMP lookUpImpOrForwardTryCache(id obj, SEL, Class cls, int behavior = 0);
@@ -604,6 +623,19 @@ extern bool logMessageSend(bool isClassMethod,
 extern void _objc_msgForward_impcache(void);
 #else
 extern id _objc_msgForward_impcache(id, SEL, ...);
+#endif
+
+#if __arm64__
+// An IMP that returns nil the same way msgSend(nil) does.
+void _objc_returnNil(void);
+#elif __x86_64
+// IMPs that return nil the same way msgSend(nil) does, with variants for
+// the different Intel calling conventions. (Note that _stret is handled in the
+// caller by either doing a nil check before messaging or zeroing the struct
+// memory before messaging.
+extern "C" void _objc_msgNil(void);
+extern "C" void _objc_msgNil_fpret(void);
+extern "C" void _objc_msgNil_fp2ret(void);
 #endif
 
 // Report an error gated on an environment variable. Based on the variable,
@@ -656,6 +688,9 @@ extern void gdb_objc_class_changed(Class cls, unsigned long changes, const char 
     __attribute__((noinline));
 
 
+extern void masks_init(void);
+extern void accessors_init(void);
+extern void runtime_tls_init(void);
 extern void environ_init(void);
 extern void runtime_init(void);
 
@@ -696,16 +731,18 @@ enum class SyncKind {
     atSynchronize, // Used for @synchronize/objc_sync_enter/exit.
     classInitialize, // Used for +initialize machinery.
 };
+extern void _objc_sync_init(void);
 extern void _destroySyncCache(struct SyncCache *cache);
 extern void _objc_sync_exit_forked_child(id obj, SyncKind kind);
 extern void _objc_sync_assert_locked(id obj, SyncKind kind);
 extern void _objc_sync_assert_unlocked(id obj, SyncKind kind);
 extern void _objc_sync_foreach_lock(void (^call)(id obj, SyncKind kind, recursive_mutex_t *mutex));
-extern void _objc_sync_lock_atfork_prepare(void);
-extern void _objc_sync_lock_atfork_parent(void);
 extern void _objc_sync_lock_atfork_child(void);
 extern int _objc_sync_enter_kind(id obj, SyncKind kind);
 extern int _objc_sync_exit_kind(id obj, SyncKind kind);
+extern spinlock_t *_objc_sync_locks_get_lock(unsigned n);
+
+void side_tables_init(void);
 
 // arr
 extern void arr_init(void);
@@ -744,14 +781,18 @@ extern bool MultithreadedForkChild;
 extern id objc_noop_imp(id self, SEL _cmd);
 extern Class look_up_class(const char *aClassName, bool includeUnconnected, bool includeClassHandler);
 extern bool is_root_ramdisk();
-extern "C" void map_images(unsigned count, const struct _dyld_objc_notify_mapped_info infos[]);
+extern "C" void map_images(unsigned count, const struct _dyld_objc_notify_mapped_info infos[],
+                           _dyld_objc_mark_image_mutable makeImageMutable);
 extern void map_images_nolock(unsigned count,
                               const struct _dyld_objc_notify_mapped_info infos[],
-                              bool *disabledClassROEnforcement);
+                              bool *disabledClassROEnforcement,
+                              _dyld_objc_mark_image_mutable makeImageMutable);
 extern void load_images(const struct _dyld_objc_notify_mapped_info* info);
 extern void unmap_image(const char *path, const struct mach_header *mh);
 extern void unmap_image_nolock(const struct mach_header *mh);
-extern void _read_images(mapped_image_info infos[], uint32_t hCount, int totalClasses, int unoptimizedTotalClass);
+extern void _read_images(mapped_image_info infos[], uint32_t hCount,
+                         int totalClasses, int unoptimizedTotalClass,
+                         _dyld_objc_mark_image_mutable makeImageMutable);
 void loadAllCategoriesIfNeeded(void);
 extern void _unload_image(header_info *hi);
 
@@ -766,6 +807,8 @@ extern const char *_category_getName(Category cat);
 extern const char *_category_getClassName(Category cat);
 extern Class _category_getClass(Category cat);
 extern IMP _category_getLoadMethod(Category cat);
+
+extern void *_calloc_canonical(size_t size);
 
 enum {
     OBJECT_CONSTRUCT_NONE = 0,
@@ -938,23 +981,7 @@ class StripedMap {
         }
     }
 
-    void defineLockOrder() {
-        for (unsigned int i = 1; i < StripeCount; i++) {
-            lockdebug::lock_precedes_lock(&array[i-1].value, &array[i].value);
-        }
-    }
-
-    void precedeLock(const void *newlock) {
-        // assumes defineLockOrder is also called
-        lockdebug::lock_precedes_lock(&array[StripeCount-1].value, newlock);
-    }
-
-    void succeedLock(const void *oldlock) {
-        // assumes defineLockOrder is also called
-        lockdebug::lock_precedes_lock(oldlock, &array[0].value);
-    }
-
-    const void *getLock(int i) {
+    T *getLock(int i) {
         if (i < StripeCount) return &array[i].value;
         else return nil;
     }
@@ -1050,23 +1077,26 @@ static inline bool operator != (DisguisedPtr<objc_object> lhs, id rhs) {
 // T1: store to old variable; store-release to hook variable
 // T2: load-acquire from hook variable; call it; called hook loads old variable
 
-template <typename Fn>
+template <typename Fn, typename SignedFnStorage = Fn *>
 class ChainedHookFunction {
-    std::atomic<Fn> hook{nil};
-
+    PtrauthGlobalAtomicFunction<Fn> storage;
 public:
-    constexpr ChainedHookFunction(Fn f) : hook{f} { };
+    constexpr ChainedHookFunction(Fn f) : storage{f} {}
 
-    Fn get() {
-        return hook.load(std::memory_order_acquire);
+    bool isSet() {
+        return storage.isSet();
     }
 
-    void set(Fn newValue, Fn *oldVariable)
+    Fn get() {
+        return storage.load(std::memory_order_acquire);
+    }
+
+    void set(Fn newValue, SignedFnStorage oldVariable)
     {
-        Fn oldValue = hook.load(std::memory_order_relaxed);
+        auto oldValue = storage.load(std::memory_order_relaxed);
         do {
             *oldVariable = oldValue;
-        } while (!hook.compare_exchange_weak(oldValue, newValue,
+        } while (!storage.compare_exchange_weak(oldValue, newValue,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
     }
@@ -1084,8 +1114,6 @@ public:
 
 template <typename T, unsigned InlineCount>
 class GlobalSmallVector {
-    static_assert(std::is_pod<T>::value, "SmallVector requires POD types");
-    
 protected:
     unsigned count{0};
     union {
@@ -1094,6 +1122,8 @@ protected:
     };
     
 public:
+    GlobalSmallVector() {}
+
     void append(const T &val) {
         if (count < InlineCount) {
             // We have space. Store the new value inline.
@@ -1101,12 +1131,22 @@ public:
         } else if (count == InlineCount) {
             // Inline storage is full. Switch to a heap allocation.
             T *newElements = (T *)malloc((count + 1) * sizeof(T));
-            memcpy(newElements, inlineElements, count * sizeof(T));
+            for (unsigned i = 0; i < count; i++)
+                newElements[i] = inlineElements[i];
             newElements[count] = val;
             elements = newElements;
         } else {
             // Resize the heap allocation and append.
-            elements = (T *)realloc(elements, (count + 1) * sizeof(T));
+            if (std::is_pod_v<T>) {
+                elements = (T *)realloc(elements, (count + 1) * sizeof(T));
+            } else {
+                T *newElements = (T *)malloc((count + 1) * sizeof(T));
+                for (unsigned i = 0; i < count; i++)
+                    newElements[i] = elements[i];
+                free(elements);
+                elements = newElements;
+            }
+
             elements[count] = val;
         }
         count++;
@@ -1155,6 +1195,11 @@ public:
 
     T *begin() { return ptr; }
     T *end() { return ptr + count; }
+    uint32_t index(const T* v) {
+        ASSERT(v >= begin());
+        ASSERT(v < end());
+        return (uint32_t)(v - begin());
+    }
 };
 
 // A fixed-size array that fills from the back, producing a contiguous chunk of
