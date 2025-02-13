@@ -6,11 +6,15 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <objc/runtime.h>
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         // insert code here...
         NSLog(@"Hello, World!");
+        IMP imp = imp_implementationWithBlock(^{
+            
+        });
     }
     return 0;
 }
